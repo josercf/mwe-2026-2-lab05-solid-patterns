@@ -25,7 +25,7 @@ OLLAMA_ENDPOINT = "http://localhost:11434/api/chat"
 
 # Modelos pequenos, adequados ao uso em sala
 DEFAULT_GITHUB_MODEL = os.environ.get("MODEL", "openai/gpt-4o-mini")
-DEFAULT_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+DEFAULT_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")
 
 TIMEOUT = int(os.environ.get("AI_TIMEOUT", "120"))
 
