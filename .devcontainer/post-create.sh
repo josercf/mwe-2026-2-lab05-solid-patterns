@@ -6,6 +6,11 @@ echo "==> Configurando o laboratorio mwe-2026-2-lab05-solid-patterns"
 
 # --- Dependencias da stack -------------------------------------------------
 if [ -f pom.xml ]; then mvn -q -B dependency:go-offline || true; fi
+# Pre-aquece as duas stacks: sem isto a turma perde minutos baixando
+# Spring Boot e Npgsql no comeco da aula.
+if [ -f pedidos/pom.xml ]; then mvn -B -q -f pedidos/pom.xml dependency:go-offline || true; fi
+if [ -f faturamento/Faturamento.sln ]; then dotnet restore faturamento/Faturamento.sln || true; fi
+pip install --user pytest >/dev/null 2>&1 || true
 
 # --- Ollama: SLM rodando dentro do proprio container -----------------------
 # Backend único de IA dos laboratórios, decisão registrada na ADR-005 do

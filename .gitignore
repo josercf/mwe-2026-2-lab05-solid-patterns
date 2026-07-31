@@ -1,23 +1,17 @@
-# Dependencias
-node_modules/
-__pycache__/
-*.py[cod]
-.venv/
-venv/
+# Java / Maven
 target/
+*.class
+
+# .NET
 bin/
 obj/
+*.user
 
-# Ambiente
-.env
-.env.local
+# Python
+__pycache__/
+*.pyc
 
-# Editor
-.DS_Store
+# Editores e sistema
+.vscode/
 .idea/
-*.swp
-
-# Build
-dist/
-build/
-*.log
+.DS_Store
