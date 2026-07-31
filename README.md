@@ -36,43 +36,29 @@ code .
 # VS Code vai sugerir: "Reopen in Container"
 ```
 
-Localmente, exporte o token para habilitar o assistente de IA:
-
-```bash
-export GITHUB_TOKEN=$(gh auth token)
-```
-
 ---
 
 ## Assistente de IA incluso
 
-O laboratorio traz um cliente minimo que fala com **GitHub Models** usando o
-token que o Codespaces ja injeta. Voce nao precisa criar conta, gerar chave nem
-cadastrar cartao.
-
-```bash
-python ai/ask.py "explique a diferenca entre TCP e UDP em duas frases"
-
-# escolher outro modelo pequeno
-MODEL=microsoft/phi-4-mini-instruct python ai/ask.py "..."
-
-# usar um arquivo como prompt
-cat prompts/prd.md | python ai/ask.py
-```
-
-Se o GitHub Models estiver indisponivel ou a cota da sua conta tiver acabado, o
-script cai automaticamente para o **Ollama que ja vem instalado neste
-devcontainer**, com o modelo `qwen2.5:1.5b` baixado na criacao do ambiente.
+O laboratorio traz um cliente minimo que fala com o **Ollama que ja vem
+instalado neste devcontainer**, com o modelo `qwen2.5:1.5b` baixado na criacao
+do ambiente. Nenhuma conta, chave ou cartao e necessario, e o prompt nao sai
+da sua maquina.
 
 ```bash
 ollama list                      # o modelo ja deve aparecer aqui
-OLLAMA_MODEL=qwen2.5:1.5b python ai/ask.py "..."   # forcar o modelo local
+python ai/ask.py "explique a diferenca entre TCP e UDP em duas frases"
+
+# usar um arquivo como prompt
+cat prompts/prd.md | python ai/ask.py
+
+# escolher outro modelo local
 ollama pull qwen2.5:3b           # modelo maior, se a maquina aguentar
+OLLAMA_MODEL=qwen2.5:3b python ai/ask.py "..."
 ```
 
-> A cota gratuita do GitHub Models e limitada por dia. Se a turma inteira
-> disparar requisicoes ao mesmo tempo, o fallback local resolve sem depender
-> de rede.
+> Se o `ai/ask.py` avisar que o servidor nao responde, rode `ollama serve`
+> em um terminal separado e tente de novo.
 
 ---
 
@@ -151,7 +137,7 @@ mwe-2026-2-lab05-solid-patterns/
 │   ├── devcontainer.json   # ambiente reproduzivel (Codespaces e local)
 │   └── post-create.sh      # instalacao de dependencias
 ├── ai/
-│   └── ask.py              # cliente de IA (GitHub Models -> Ollama)
+│   └── ask.py              # cliente de IA (Ollama local)
 ├── docs/                   # artefatos de especificacao
 └── README.md
 ```
