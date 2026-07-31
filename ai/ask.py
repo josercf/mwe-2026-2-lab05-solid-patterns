@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Cliente minimo de IA para os laboratorios da disciplina.
+Cliente mínimo de IA para os laboratórios da disciplina.
 
-Ordem de tentativa:
-  1. GitHub Models  - usa o GITHUB_TOKEN, que o Codespaces ja injeta.
-                      Nenhuma conta ou cartao adicional e necessario.
-  2. Ollama local   - fallback offline, se voce tiver `ollama serve` rodando.
+Backend único: o servidor Ollama instalado neste devcontainer. O GitHub
+Models foi retirado do ar em 30/07/2026, antes da primeira aula, e deixou
+de ser uma opção (decisão registrada na ADR-005 do acervo da disciplina).
 
 Uso:
-    python ai/ask.py "escreva um PRD para o servico de telemetria"
+    python ai/ask.py "escreva um PRD para o serviço de telemetria"
     cat prompt.txt | python ai/ask.py
-    MODEL=microsoft/phi-4-mini-instruct python ai/ask.py "..."
+    OLLAMA_MODEL=qwen2.5:3b python ai/ask.py "..."
 
-Sem dependencias externas: so a biblioteca padrao.
+Sem dependências externas: só a biblioteca padrão.
 """
 import json
 import os
@@ -20,55 +19,35 @@ import sys
 import urllib.error
 import urllib.request
 
-GITHUB_ENDPOINT = "https://models.github.ai/inference/chat/completions"
-OLLAMA_ENDPOINT = "http://localhost:11434/api/chat"
-
-# Modelos pequenos, adequados ao uso em sala
-DEFAULT_GITHUB_MODEL = os.environ.get("MODEL", "openai/gpt-4o-mini")
-DEFAULT_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")
-
-TIMEOUT = int(os.environ.get("AI_TIMEOUT", "120"))
+BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+MODELO = os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")
+TIMEOUT = int(os.environ.get("AI_TIMEOUT", "300"))
 
 
-def _post(url, payload, headers, timeout=TIMEOUT):
+def ollama_no_ar():
+    """Confirma que o servidor Ollama responde antes de mandar o prompt."""
+    try:
+        with urllib.request.urlopen(BASE_URL + "/api/tags", timeout=5):
+            return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def perguntar(prompt):
     req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", **headers},
+        BASE_URL + "/api/chat",
+        data=json.dumps(
+            {
+                "model": MODELO,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            }
+        ).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def via_github_models(prompt):
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not token:
-        raise RuntimeError("GITHUB_TOKEN ausente")
-
-    data = _post(
-        GITHUB_ENDPOINT,
-        {
-            "model": DEFAULT_GITHUB_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-        },
-        {"Authorization": "Bearer " + token},
-    )
-    return data["choices"][0]["message"]["content"]
-
-
-def via_ollama(prompt):
-    data = _post(
-        OLLAMA_ENDPOINT,
-        {
-            "model": DEFAULT_OLLAMA_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-        },
-        {},
-        timeout=300,
-    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
     return data["message"]["content"]
 
 
@@ -80,31 +59,32 @@ def main():
         print(__doc__)
         return 1
 
-    tentativas = [("GitHub Models", via_github_models), ("Ollama local", via_ollama)]
-    erros = []
+    if not ollama_no_ar():
+        sys.stderr.write(
+            "O servidor Ollama não está respondendo em %s.\n"
+            "Suba com: ollama serve\n"
+            "Depois confirme o modelo com: ollama list\n" % BASE_URL
+        )
+        return 1
 
-    for nome, fn in tentativas:
-        try:
-            print("[{}] consultando...".format(nome), file=sys.stderr)
-            print(fn(prompt))
-            return 0
-        except urllib.error.HTTPError as e:
-            corpo = e.read().decode("utf-8", "replace")[:300]
-            erros.append("{}: HTTP {} {}".format(nome, e.code, corpo))
-        except Exception as e:  # noqa: BLE001
-            erros.append("{}: {}".format(nome, e))
-
-    print("\nNenhum backend de IA respondeu.\n", file=sys.stderr)
-    for e in erros:
-        print("  - " + e, file=sys.stderr)
-    print(
-        "\nDicas:\n"
-        "  - No Codespaces o GITHUB_TOKEN e injetado automaticamente.\n"
-        "  - Localmente: export GITHUB_TOKEN=$(gh auth token)\n"
-        "  - Offline: ollama serve && ollama pull qwen2.5:3b\n",
-        file=sys.stderr,
-    )
-    return 1
+    try:
+        print("[Ollama] consultando o modelo %s..." % MODELO, file=sys.stderr)
+        print(perguntar(prompt))
+        return 0
+    except urllib.error.HTTPError as e:
+        corpo = e.read().decode("utf-8", "replace")[:300]
+        sys.stderr.write(
+            "O Ollama respondeu HTTP %d: %s\n"
+            "Se o modelo não existe localmente, baixe com: ollama pull %s\n"
+            % (e.code, corpo, MODELO)
+        )
+        return 1
+    except (urllib.error.URLError, OSError) as e:
+        sys.stderr.write(
+            "Falha ao consultar o Ollama: %s\n"
+            "Confira o servidor com: ollama list\n" % e
+        )
+        return 1
 
 
 if __name__ == "__main__":
