@@ -2,14 +2,12 @@ package br.com.fiap.logitech.pedidos.aplicacao;
 
 import br.com.fiap.logitech.pedidos.dominio.NovoPedido;
 import br.com.fiap.logitech.pedidos.dominio.Pedido;
+import br.com.fiap.logitech.pedidos.dominio.PedidoRepository;
 import br.com.fiap.logitech.pedidos.dominio.SolicitacaoFatura;
 import br.com.fiap.logitech.pedidos.faturamento.ClienteFaturamento;
-import br.com.fiap.logitech.pedidos.faturamento.ConectorBoleto;
-import br.com.fiap.logitech.pedidos.faturamento.ConectorCartaoCorporativo;
 import br.com.fiap.logitech.pedidos.faturamento.ConectorFaturamento;
-import br.com.fiap.logitech.pedidos.faturamento.ConectorNaoEncontradoException;
+import br.com.fiap.logitech.pedidos.faturamento.ConectorFaturamentoFactory;
 import br.com.fiap.logitech.pedidos.faturamento.FaturamentoIndisponivelException;
-import br.com.fiap.logitech.pedidos.infra.JpaPedidoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,43 +18,47 @@ import java.util.List;
 /**
  * Regra de negócio do contexto de Pedidos.
  *
- * <p>Esta classe funciona. Ela também é o exemplo do que esta aula inteira
- * trata de consertar: uma regra de negócio que conhece o ORM que a persiste e
- * a lista de todas as formas de cobrança da empresa. Duas lacunas de projeto,
- * três TODOs.</p>
+ * <p><strong>GABARITO das lacunas 1, 2 e 3.</strong> Compare a lista de
+ * {@code import} deste arquivo com a do esqueleto. Ela é o resumo mais honesto
+ * do que a aula fez, porque import é dependência declarada:</p>
  *
  * <ul>
- *   <li><strong>TODO-1 (DIP):</strong> o campo {@code repositorio} é do tipo
- *       concreto {@code JpaPedidoRepository}. Regra de negócio dependendo de
- *       infraestrutura: trocar de banco, de ORM ou testar sem banco custa
- *       mexer aqui. Crie a interface {@code PedidoRepository} no pacote
- *       {@code dominio}, faça {@code JpaPedidoRepository} implementá-la e
- *       passe a depender da interface. O import de {@code infra} tem que
- *       sumir deste arquivo.</li>
- *   <li><strong>TODO-2 (Factory Method):</strong> {@link #escolherConector}
- *       é uma cadeia de {@code if} que cresce a cada contrato novo. Mova a
- *       decisão para {@code ConectorFaturamentoFactory} e apague este método
- *       privado.</li>
- *   <li><strong>TODO-3 (OCP):</strong> depois do TODO-2, acrescente o tipo de
- *       cliente CONTRATO <strong>sem tocar em nenhuma linha desta classe</strong>.
- *       Se você precisou editar este arquivo para o tipo novo funcionar, o
- *       Aberto/Fechado não foi alcançado.</li>
+ *   <li>sumiu {@code infra.JpaPedidoRepository}: a regra de negócio não conhece
+ *       mais o ORM que a persiste (TODO-1);</li>
+ *   <li>sumiram {@code ConectorBoleto} e {@code ConectorCartaoCorporativo}:
+ *       a decisão de qual conector usar mudou de lugar (TODO-2);</li>
+ *   <li>sumiu {@code ConectorNaoEncontradoException}: quem sabe que um tipo de
+ *       cliente não tem conector é a fábrica, que é quem procura;</li>
+ *   <li>restou {@code ConectorFaturamento}, a abstração, e nenhuma das suas
+ *       implementações.</li>
  * </ul>
+ *
+ * <p>O ganho do TODO-3 se mede aqui: o conector do cliente CONTRATO foi
+ * acrescentado ao projeto sem que uma única linha deste arquivo mudasse por
+ * causa dele. É isso que o Aberto/Fechado promete, e é por isso que o critério
+ * de aceitação do passo 4 é um {@code git diff} vazio, e não um teste verde.</p>
  */
 @Service
 public class PedidoService {
 
     private static final Logger log = LoggerFactory.getLogger(PedidoService.class);
 
-    // TODO-1: tipo concreto. Deveria ser a abstração PedidoRepository.
-    private final JpaPedidoRepository repositorio;
+    // GABARITO, TODO-1: o campo é da abstração declarada no domínio. Quem chega
+    // aqui em tempo de execução continua sendo o JpaPedidoRepository, injetado
+    // pelo Spring; a diferença é que esta classe não sabe disso, e o teste de
+    // unidade pode passar outra coisa.
+    private final PedidoRepository repositorio;
     private final ClienteFaturamento clienteFaturamento;
 
-    // TODO-1 e TODO-2: o construtor recebe a implementação concreta do
-    // repositório e não recebe a fábrica de conectores. Os dois mudam.
-    public PedidoService(JpaPedidoRepository repositorio, ClienteFaturamento clienteFaturamento) {
+    // GABARITO, TODO-2: a fábrica entra por construtor, como toda dependência.
+    private final ConectorFaturamentoFactory conectores;
+
+    public PedidoService(PedidoRepository repositorio,
+                         ClienteFaturamento clienteFaturamento,
+                         ConectorFaturamentoFactory conectores) {
         this.repositorio = repositorio;
         this.clienteFaturamento = clienteFaturamento;
+        this.conectores = conectores;
     }
 
     /**
@@ -71,7 +73,9 @@ public class PedidoService {
         Pedido pedido = new Pedido(novo.cliente(), novo.tipoCliente(), novo.origem(),
                 novo.destino(), novo.enderecoEntrega(), novo.pesoKg(), novo.valor());
 
-        ConectorFaturamento conector = escolherConector(pedido.getTipoCliente());
+        // GABARITO, TODO-2: uma linha, e ela não sabe quantos tipos de cliente
+        // existem. A cadeia de if virou uma pergunta para quem tem a resposta.
+        ConectorFaturamento conector = conectores.para(pedido.getTipoCliente());
         SolicitacaoFatura solicitacao = conector.montar(pedido);
 
         try {
@@ -83,19 +87,6 @@ public class PedidoService {
         }
 
         return repositorio.salvar(pedido);
-    }
-
-    // TODO-2 e TODO-3: este método privado é o problema. Cada contrato novo do
-    // comercial vira mais um "else if" aqui dentro, num arquivo que não deveria
-    // ter motivo nenhum para mudar por causa disso.
-    private ConectorFaturamento escolherConector(String tipoCliente) {
-        if (ConectorBoleto.TIPO_CLIENTE.equals(tipoCliente)) {
-            return new ConectorBoleto();
-        }
-        if (ConectorCartaoCorporativo.TIPO_CLIENTE.equals(tipoCliente)) {
-            return new ConectorCartaoCorporativo();
-        }
-        throw new ConectorNaoEncontradoException(tipoCliente);
     }
 
     @Transactional(readOnly = true)

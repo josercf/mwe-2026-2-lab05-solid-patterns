@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Faturamento.Api.Aplicacao;
 using Faturamento.Api.Dominio;
-using Faturamento.Api.Infraestrutura;
 using Xunit;
 
 namespace Faturamento.Tests;
@@ -17,40 +16,32 @@ public class FaturaServiceTests
     /// Dublê de teste do repositório.
     /// </summary>
     /// <remarks>
-    /// <para><strong>TODO-4:</strong> repare no preço do acoplamento. Como
-    /// <c>FaturaService</c> depende da classe concreta, este dublê é obrigado a
-    /// <em>herdar</em> do repositório do EF Core e a chamar <c>base(null!)</c>
-    /// passando um <c>DbContext</c> nulo que ninguém usa.</para>
-    ///
-    /// <para>Depois de criar <c>IFaturaRepository</c>, troque
-    /// <c>: EfFaturaRepository</c> por <c>: IFaturaRepository</c>, apague o
-    /// construtor com <c>base(null!)</c>, tire os <c>override</c> e apague o
-    /// <c>using</c> de <c>Infraestrutura</c>. Os testes continuam passando, e
-    /// agora eles não sabem mais que existe um ORM no projeto.</para>
+    /// <para><strong>GABARITO, TODO-4.</strong> Compare com o esqueleto:
+    /// sumiram o <c>: EfFaturaRepository</c>, o <c>base(null!)</c>, os três
+    /// <c>override</c> e o <c>using</c> de <c>Infraestrutura</c>. O
+    /// <c>base(null!)</c> era o acoplamento cobrando o preço no teste: para
+    /// exercitar regra de negócio, o teste precisava construir um repositório
+    /// de EF Core com um <c>DbContext</c> nulo que ninguém usava.</para>
     ///
     /// <para>O dicionário é concorrente de propósito: o defeito que o TODO-6 vai
     /// expor está no numerador de notas, e não no armazenamento do dublê.</para>
     /// </remarks>
-    private class FaturaRepositorioEmMemoria : EfFaturaRepository
+    private class FaturaRepositorioEmMemoria : IFaturaRepository
     {
         private readonly ConcurrentDictionary<string, Fatura> _dados = new();
 
-        public FaturaRepositorioEmMemoria() : base(null!)
-        {
-        }
-
-        public override Fatura Salvar(Fatura fatura)
+        public Fatura Salvar(Fatura fatura)
         {
             _dados[fatura.PedidoId] = fatura;
             return fatura;
         }
 
-        public override Fatura? PorPedido(string pedidoId)
+        public Fatura? PorPedido(string pedidoId)
         {
             return _dados.TryGetValue(pedidoId, out Fatura? fatura) ? fatura : null;
         }
 
-        public override IReadOnlyList<Fatura> Todas()
+        public IReadOnlyList<Fatura> Todas()
         {
             return _dados.Values.OrderBy(f => f.EmitidaEm).ToList();
         }
@@ -66,8 +57,9 @@ public class FaturaServiceTests
     private static FaturaService ServicoNovo()
     {
         NumeradorNotaFiscal.Instancia.ReiniciarParaTeste();
-        // TODO-4: quando a interface existir, a linha abaixo continua igual;
-        // o que muda é o tipo que FaturaService declara receber.
+        // GABARITO, TODO-4: esta linha é literalmente a mesma do esqueleto. O
+        // que mudou foi o tipo que FaturaService declara receber, e é por isso
+        // que o dublê pôde deixar de herdar do EF Core.
         return new FaturaService(new FaturaRepositorioEmMemoria());
     }
 

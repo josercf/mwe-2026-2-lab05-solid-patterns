@@ -1,7 +1,8 @@
 namespace Faturamento.Api.Dominio;
 
 /// <summary>
-/// TODO-5 (Singleton thread-safe): gerador do número sequencial da nota fiscal.
+/// GABARITO, TODO-5 (Singleton thread-safe): gerador do número sequencial da
+/// nota fiscal.
 /// </summary>
 /// <remarks>
 /// <para>Número de nota fiscal é sequencial e único por natureza: dois pedidos
@@ -9,40 +10,49 @@ namespace Faturamento.Api.Dominio;
 /// mora em uma instância única compartilhada por todas as requisições, e é
 /// exatamente aí que mora o perigo.</para>
 ///
-/// <para>Este Singleton está <strong>quebrado de propósito</strong>, em dois
-/// pontos:</para>
+/// <para>O esqueleto tinha dois defeitos, e os dois precisavam de correção
+/// separada:</para>
+///
 /// <list type="number">
-///   <item>a criação da instância (<c>??=</c>) não é sincronizada: duas threads
-///         chegando juntas na primeira chamada criam dois numeradores, cada um
-///         com o seu contador;</item>
-///   <item><c>Proximo()</c> faz ler, somar e gravar em três passos separados.
-///         Entre a leitura e a gravação, outra thread pode ler o mesmo valor e
-///         produzir o mesmo número de nota.</item>
+///   <item><strong>A criação da instância.</strong> O <c>??=</c> do esqueleto
+///         é ler, testar e atribuir em passos separados: duas threads chegando
+///         juntas na primeira chamada criavam dois numeradores, cada um com o
+///         seu contador. O <c>Lazy&lt;T&gt;</c> resolve isso por construção. O
+///         modo padrão é <c>ExecutionAndPublication</c>, que garante que a
+///         fábrica roda uma vez só, mesmo com dezenas de threads chegando ao
+///         mesmo tempo. Um campo <c>static readonly</c> inicializado na
+///         declaração também serviria: o CLR garante a inicialização de tipo
+///         uma única vez.</item>
+///   <item><strong>O incremento do contador.</strong>
+///         <c>Interlocked.Increment</c> faz ler, somar e gravar virarem uma
+///         operação atômica no processador, indivisível por definição. Não há
+///         mais janela entre a leitura e a gravação porque não há mais leitura
+///         e gravação separadas.</item>
 /// </list>
 ///
-/// <para>A chamada a <c>Thread.Yield()</c> no meio do método não cria o defeito:
-/// ela apenas alarga uma janela que já existe, para a corrida aparecer em 100
-/// execuções em vez de aparecer uma vez a cada tantos milhares. Tirar o
-/// <c>Yield</c> não conserta nada.</para>
+/// <para>Corrigir só um dos dois não resolveria. Instância única com
+/// incremento desprotegido continua duplicando número; incremento atômico em
+/// duas instâncias diferentes duplica igual, porque são dois contadores.</para>
 ///
-/// <h3>O que você faz aqui</h3>
-/// <list type="number">
-///   <item>Escreva primeiro o teste do TODO-6 e veja-o falhar com números
-///         repetidos. Registre a quantidade em
-///         <c>docs/EVIDENCIAS.md</c>, no campo <c>NOTAS_DUPLICADAS_ANTES</c>.</item>
-///   <item>Só então torne este Singleton thread-safe: a criação da instância
-///         (<c>Lazy&lt;T&gt;</c> ou campo <c>static readonly</c>) e o incremento
-///         do contador (<c>lock</c> ou <c>Interlocked.Increment</c>).</item>
-///   <item>Rode o teste de novo e registre <c>NOTAS_DUPLICADAS_DEPOIS</c>.</item>
-/// </list>
+/// <para>O <c>Thread.Yield()</c> do esqueleto sumiu junto com o incremento em
+/// três passos. Ele nunca foi o defeito: apenas alargava uma janela que já
+/// existia, para a corrida aparecer em 100 execuções em vez de uma vez a cada
+/// tantos milhares. Com <c>Interlocked</c> não há janela para alargar.</para>
 ///
-/// <para>Não mude a forma do número devolvido: o formato <c>NF-000001</c>, com
-/// seis dígitos, é lido pelo serviço de Pedidos e pelo verificador.</para>
+/// <para>Alternativa igualmente aceita: um <c>lock</c> em torno do bloco de
+/// leitura e escrita. <c>Interlocked.Increment</c> foi preferido por ser mais
+/// barato para o caso de um único contador, já que não envolve o custo de
+/// entrar e sair de uma região crítica.</para>
+///
+/// <para>O formato do número devolvido não mudou: <c>NF-000001</c>, com seis
+/// dígitos, é lido pelo serviço de Pedidos e pelo verificador.</para>
 /// </remarks>
 public sealed class NumeradorNotaFiscal
 {
-    // TODO-5: criação da instância sem sincronização nenhuma.
-    private static NumeradorNotaFiscal? _instancia;
+    // GABARITO, TODO-5, defeito 1: instância criada uma única vez, com a
+    // sincronização garantida pelo próprio Lazy<T>.
+    private static readonly Lazy<NumeradorNotaFiscal> _instancia =
+        new(() => new NumeradorNotaFiscal());
 
     private int _ultimo;
 
@@ -50,17 +60,15 @@ public sealed class NumeradorNotaFiscal
     {
     }
 
-    public static NumeradorNotaFiscal Instancia => _instancia ??= new NumeradorNotaFiscal();
+    public static NumeradorNotaFiscal Instancia => _instancia.Value;
 
     /// <summary>Devolve o próximo número de nota fiscal, no formato NF-000001.</summary>
     public string Proximo()
     {
-        // TODO-5: ler, somar e gravar em três passos separados é o que permite
-        // duas threads devolverem o mesmo número.
-        int atual = _ultimo;
-        Thread.Yield();
-        atual = atual + 1;
-        _ultimo = atual;
+        // GABARITO, TODO-5, defeito 2: uma operação atômica no lugar dos três
+        // passos. Interlocked.Increment devolve o valor já incrementado, então
+        // nenhuma outra thread pode ter usado este mesmo número.
+        int atual = Interlocked.Increment(ref _ultimo);
 
         return $"NF-{atual:D6}";
     }
@@ -73,10 +81,14 @@ public sealed class NumeradorNotaFiscal
     /// recomeçaria em NF-000001 e esbarraria no índice único da tabela de
     /// faturas: estado em memória não sobrevive ao processo, e o Singleton
     /// precisa ser reconstruído a partir de onde a verdade mora, que é o banco.
+    ///
+    /// <para>A escrita usa Interlocked.Exchange pelo mesmo motivo do
+    /// incremento: o campo passou a ser tocado por várias threads, e toda
+    /// escrita nele precisa ser atômica para o contador continuar coerente.</para>
     /// </remarks>
     public void IniciarEm(int ultimoEmitido)
     {
-        _ultimo = ultimoEmitido;
+        Interlocked.Exchange(ref _ultimo, ultimoEmitido);
     }
 
     /// <summary>

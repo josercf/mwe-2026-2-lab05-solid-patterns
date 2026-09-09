@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 // Serviço de Faturamento da LogiTech Enterprise.
 // C# / .NET 8, porta 5080, rotas conforme o contrato da plataforma (ADR-006).
-// Não é tarefa: este arquivo só muda em uma linha, no TODO-4, para registrar a
-// interface do repositório no contêiner de injeção de dependência.
+// GABARITO: este arquivo mudou em uma linha só, a do registro da interface do
+// repositório no contêiner de injeção de dependência.
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,9 +21,9 @@ string senha = Environment.GetEnvironmentVariable("LOGITECH_DB_PASSWORD") ?? "lo
 builder.Services.AddDbContext<FaturamentoDbContext>(opcoes =>
     opcoes.UseNpgsql(ConexaoPostgres.Traduzir(urlBanco, usuario, senha)));
 
-// TODO-4: quando IFaturaRepository existir, registre a implementação aqui:
-//   builder.Services.AddScoped<IFaturaRepository, EfFaturaRepository>();
-builder.Services.AddScoped<EfFaturaRepository>();
+// GABARITO, TODO-4: é aqui, e só aqui, que o sistema decide qual implementação
+// atende a abstração. Trocar de ORM ou de banco passa a ser trocar esta linha.
+builder.Services.AddScoped<IFaturaRepository, EfFaturaRepository>();
 builder.Services.AddScoped<FaturaService>();
 
 var app = builder.Build();

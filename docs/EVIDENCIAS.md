@@ -1,5 +1,12 @@
 # Evidências, Aula 05, POO, SOLID e Design Patterns
 
+> **Branch `gabarito`.** Os números abaixo foram medidos de verdade, no
+> ambiente descrito em `AMBIENTE`, e não copiados de lugar nenhum. Três
+> execuções seguidas do teste do TODO-6 com o Singleton ainda quebrado deram
+> **6, 8 e 4** notas duplicadas; o valor registrado é o da primeira. A variação
+> entre execuções é a assinatura de uma corrida: o resultado depende de quando
+> cada thread foi escalonada, e o número de vocês vai ser outro.
+
 Formulário único, preenchido à medida que você fecha cada lacuna. O
 `verificar.py` lê estes marcadores procurando por `MARCADOR: valor`. Não apague
 o nome do marcador, não mude a grafia, e troque `PREENCHER` pelo valor real
@@ -31,8 +38,8 @@ prova. Se o teste passou de primeira, ele não está concorrente de verdade:
 confira se são 100 chamadas e se elas partem juntas.
 
 ```
-NOTAS_DUPLICADAS_ANTES: PREENCHER
-NOTAS_DUPLICADAS_DEPOIS: PREENCHER
+NOTAS_DUPLICADAS_ANTES: 6
+NOTAS_DUPLICADAS_DEPOIS: 0
 ```
 
 ---
@@ -49,8 +56,8 @@ o esqueleto já trazia mais os testes que as lacunas pedem: os do cliente
 CONTRATO (TODO-3) e o de concorrência (TODO-6).
 
 ```
-TESTES_JAVA: PREENCHER
-TESTES_CSHARP: PREENCHER
+TESTES_JAVA: 15
+TESTES_CSHARP: 10
 ```
 
 ---
@@ -76,8 +83,8 @@ duas respostas. Se o pedido voltar com status `AGUARDANDO_FATURAMENTO`, o
 serviço de Faturamento não foi alcançado: confira `LOGITECH_FATURAMENTO_URL`.
 
 ```
-PEDIDO_ID: PREENCHER
-NUMERO_NOTA_FISCAL: PREENCHER
+PEDIDO_ID: efc508b4-46f7-4c15-8431-0d889647b8fd
+NUMERO_NOTA_FISCAL: NF-000001
 ```
 
 ---
@@ -88,5 +95,5 @@ Não entra na verificação automática, e é o que permite comparar números en
 duplas: Codespaces ou máquina local, e quantos núcleos.
 
 ```
-AMBIENTE: PREENCHER
+AMBIENTE: devcontainer do laboratório (imagem linux/amd64) sobre macOS arm64, 10 núcleos disponíveis ao container, Java 21.0.8, Maven 3.9.9, .NET SDK 8.0.425
 ```

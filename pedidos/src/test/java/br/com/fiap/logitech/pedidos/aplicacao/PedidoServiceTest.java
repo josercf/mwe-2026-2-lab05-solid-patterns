@@ -2,12 +2,16 @@ package br.com.fiap.logitech.pedidos.aplicacao;
 
 import br.com.fiap.logitech.pedidos.dominio.NovoPedido;
 import br.com.fiap.logitech.pedidos.dominio.Pedido;
+import br.com.fiap.logitech.pedidos.dominio.PedidoRepository;
 import br.com.fiap.logitech.pedidos.dominio.SolicitacaoFatura;
 import br.com.fiap.logitech.pedidos.dominio.StatusPedido;
 import br.com.fiap.logitech.pedidos.faturamento.ClienteFaturamento;
+import br.com.fiap.logitech.pedidos.faturamento.ConectorBoleto;
+import br.com.fiap.logitech.pedidos.faturamento.ConectorCartaoCorporativo;
+import br.com.fiap.logitech.pedidos.faturamento.ConectorFaturaMensal;
+import br.com.fiap.logitech.pedidos.faturamento.ConectorFaturamentoFactory;
 import br.com.fiap.logitech.pedidos.faturamento.ConectorNaoEncontradoException;
 import br.com.fiap.logitech.pedidos.faturamento.FaturamentoIndisponivelException;
-import br.com.fiap.logitech.pedidos.infra.JpaPedidoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,25 +37,17 @@ class PedidoServiceTest {
     /**
      * Dublê de teste do repositório.
      *
-     * <p><strong>TODO-1:</strong> olhe o que este dublê precisa fazer hoje. Como
-     * {@code PedidoService} depende da classe concreta, o dublê é obrigado a
-     * <em>herdar</em> do repositório JPA e a chamar {@code super(null)} passando
-     * um {@code PedidoJpa} nulo que ninguém usa. Isso é o acoplamento cobrando
-     * o preço dele no teste.</p>
-     *
-     * <p>Depois de criar a interface {@code PedidoRepository}, troque o
-     * {@code extends JpaPedidoRepository} por {@code implements PedidoRepository},
-     * apague o construtor com {@code super(null)} e apague o import de
-     * {@code infra}. Os testes continuam passando, e agora o teste não sabe
-     * mais que existe um ORM no projeto.</p>
+     * <p><strong>GABARITO, TODO-1.</strong> Compare com o esqueleto: sumiram o
+     * {@code extends JpaPedidoRepository}, o construtor com {@code super(null)}
+     * e o import de {@code infra}. Este arquivo de teste não sabe mais que
+     * existe um ORM no projeto, e é essa a medida do DIP que interessa. O
+     * {@code super(null)} do esqueleto era o acoplamento cobrando o preço dele:
+     * para testar regra de negócio, o teste era obrigado a construir meio ORM e
+     * passar um {@code PedidoJpa} nulo que ninguém usava.</p>
      */
-    static class RepositorioEmMemoria extends JpaPedidoRepository {
+    static class RepositorioEmMemoria implements PedidoRepository {
 
         private final Map<String, Pedido> dados = new LinkedHashMap<>();
-
-        RepositorioEmMemoria() {
-            super(null);
-        }
 
         @Override
         public Pedido salvar(Pedido pedido) {
@@ -95,12 +91,12 @@ class PedidoServiceTest {
     void preparar() {
         repositorio = new RepositorioEmMemoria();
         faturamento = new FaturamentoFalso();
-        // TODO-2: quando a fábrica de conectores existir, ela é construída aqui
-        // com a lista de conectores e passada ao serviço:
-        //   var fabrica = new ConectorFaturamentoFactory(List.of(
-        //           new ConectorBoleto(), new ConectorCartaoCorporativo()));
-        //   servico = new PedidoService(repositorio, faturamento, fabrica);
-        servico = new PedidoService(repositorio, faturamento);
+        // GABARITO, TODO-2: aqui o teste faz à mão o que o Spring faz sozinho em
+        // produção, montar a lista de conectores. Repare que o conector do
+        // CONTRATO entra nesta lista sem que a fábrica ou o serviço mudem.
+        ConectorFaturamentoFactory fabrica = new ConectorFaturamentoFactory(List.of(
+                new ConectorBoleto(), new ConectorCartaoCorporativo(), new ConectorFaturaMensal()));
+        servico = new PedidoService(repositorio, faturamento, fabrica);
     }
 
     private NovoPedido novoPedido(String tipoCliente) {
@@ -162,8 +158,21 @@ class PedidoServiceTest {
         assertThrows(PedidoNaoEncontradoException.class, () -> servico.porId("nao-existe"));
     }
 
-    // TODO-3: acrescente aqui o teste que prova o Aberto/Fechado.
-    // Um pedido de cliente CONTRATO precisa ser faturado com meio de pagamento
-    // FATURA_MENSAL, e isso tem que passar a funcionar SEM que uma linha sequer
-    // de PedidoService seja alterada. Use `git diff` para conferir.
+    /**
+     * GABARITO, TODO-3. Este teste é o que prova o Aberto/Fechado do lado do
+     * comportamento, mas o critério de verdade do passo é outro, e está fora
+     * daqui: {@code git diff} sobre {@code PedidoService.java} não pode mostrar
+     * nenhuma linha alterada por causa do CONTRATO. Um teste verde diz que o
+     * tipo novo funciona; só o diff vazio diz que ele entrou sem custo.
+     */
+    @Test
+    @DisplayName("cliente CONTRATO: pedido é faturado como FATURA_MENSAL, sem tocar no serviço")
+    void clienteContratoFaturaMensalmente() {
+        Pedido pedido = servico.criar(novoPedido("CONTRATO"));
+
+        assertEquals("FATURA_MENSAL", faturamento.ultimaSolicitacao.meioPagamento());
+        assertEquals(30, faturamento.ultimaSolicitacao.prazoDias());
+        assertEquals(0, new BigDecimal("1000.00").compareTo(faturamento.ultimaSolicitacao.valor()));
+        assertEquals(StatusPedido.FATURADO, pedido.getStatus());
+    }
 }

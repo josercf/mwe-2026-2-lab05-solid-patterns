@@ -1,5 +1,4 @@
 using Faturamento.Api.Dominio;
-using Faturamento.Api.Infraestrutura;
 
 namespace Faturamento.Api.Aplicacao;
 
@@ -7,11 +6,12 @@ namespace Faturamento.Api.Aplicacao;
 /// Regra de negócio do Bounded Context de Faturamento.
 /// </summary>
 /// <remarks>
-/// <para><strong>TODO-4:</strong> o campo abaixo é do tipo concreto
-/// <c>EfFaturaRepository</c>. Regra de negócio dependendo de infraestrutura,
-/// o mesmo defeito que o serviço de Pedidos tem em Java, agora em C#: a
-/// violação do DIP não é característica de linguagem, é de projeto. Troque
-/// pela interface <c>IFaturaRepository</c>.</para>
+/// <para><strong>GABARITO, TODO-4.</strong> Sumiu o
+/// <c>using Faturamento.Api.Infraestrutura;</c> do topo do arquivo, e é essa a
+/// prova mais direta de que a inversão aconteceu: a camada de negócio não
+/// compila mais nenhuma referência à infraestrutura. Quem injeta o
+/// <c>EfFaturaRepository</c> em produção é o contêiner de injeção de
+/// dependência, configurado no <c>Program.cs</c>.</para>
 ///
 /// <para>Emitir fatura é idempotente por pedido: o serviço de Pedidos pode
 /// repetir a chamada depois de um timeout, e repetir não pode gerar duas
@@ -19,10 +19,9 @@ namespace Faturamento.Api.Aplicacao;
 /// </remarks>
 public class FaturaService
 {
-    // TODO-4: tipo concreto. Deveria ser a abstração IFaturaRepository.
-    private readonly EfFaturaRepository _repositorio;
+    private readonly IFaturaRepository _repositorio;
 
-    public FaturaService(EfFaturaRepository repositorio)
+    public FaturaService(IFaturaRepository repositorio)
     {
         _repositorio = repositorio;
     }
@@ -36,7 +35,9 @@ public class FaturaService
         }
 
         // O número da nota vem do Singleton compartilhado por todas as
-        // requisições. É o ponto onde a concorrência aparece (TODO-5).
+        // requisições, agora protegido (TODO-5). Esta linha não mudou: a
+        // correção da corrida ficou inteira dentro do numerador, e nenhum
+        // chamador precisou saber que existia um problema aqui.
         string numero = NumeradorNotaFiscal.Instancia.Proximo();
 
         var fatura = new Fatura(

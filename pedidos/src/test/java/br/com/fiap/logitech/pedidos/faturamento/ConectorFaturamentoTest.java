@@ -12,8 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Cada conector traduz as condições comerciais de um tipo de cliente.
  *
- * <p>Já vem verde. No TODO-3 você acrescenta aqui o teste do conector do tipo
- * CONTRATO, no mesmo formato dos dois que já existem.</p>
+ * <p>GABARITO, TODO-3: o terceiro teste tem exatamente a forma dos dois que já
+ * existiam. Conector novo não pede jeito novo de testar, e isso é sintoma de
+ * que a abstração está no lugar certo.</p>
  */
 class ConectorFaturamentoTest {
 
@@ -42,6 +43,13 @@ class ConectorFaturamentoTest {
         assertEquals(0, solicitacao.prazoDias());
     }
 
-    // TODO-3: acrescente aqui o teste do conector do cliente CONTRATO.
-    // Meio de pagamento FATURA_MENSAL, valor cheio, prazo de 30 dias.
+    @Test
+    @DisplayName("cliente CONTRATO é faturado mensalmente, valor cheio, em 30 dias")
+    void clienteContratoPagaFaturaMensal() {
+        SolicitacaoFatura solicitacao = new ConectorFaturaMensal().montar(pedidoDe("CONTRATO"));
+
+        assertEquals("FATURA_MENSAL", solicitacao.meioPagamento());
+        assertEquals(0, new BigDecimal("1000.00").compareTo(solicitacao.valor()));
+        assertEquals(30, solicitacao.prazoDias());
+    }
 }

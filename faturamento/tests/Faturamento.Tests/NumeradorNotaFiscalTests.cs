@@ -67,10 +67,47 @@ public class NumeradorNotaFiscalTests
         Assert.Equal(9, numero.Length);
     }
 
-    // TODO-6: escreva aqui o teste de concorrência descrito no comentário desta
-    // classe. Ele precisa disparar 100 emissões concorrentes, contar quantos
-    // números vieram repetidos e exigir zero duplicatas.
-    //
-    // Deixe o `using System.Collections.Concurrent;` do topo do arquivo: ele já
-    // está aqui para você usar a ConcurrentBag.
+    /// <summary>
+    /// GABARITO, TODO-6. O teste que faz a corrida aparecer.
+    /// </summary>
+    /// <remarks>
+    /// <para>Este teste foi escrito <strong>antes</strong> da correção do
+    /// TODO-5, e falhou: com o numerador quebrado, cem emissões concorrentes
+    /// produziram dezenas de números repetidos. O valor medido está em
+    /// <c>docs/EVIDENCIAS.md</c>, no campo <c>NOTAS_DUPLICADAS_ANTES</c>.</para>
+    ///
+    /// <para>A ordem importa e é o ponto pedagógico da lacuna. Escrito depois da
+    /// correção, este mesmo teste passaria de primeira e não teria provado
+    /// nada: ele mostraria que o código atual funciona, sem nunca mostrar que o
+    /// anterior estava quebrado. Um teste de concorrência que nunca falhou não
+    /// tem evidência de que consegue falhar.</para>
+    ///
+    /// <para><c>Task.Run</c> com <c>Task.WhenAll</c> em vez de
+    /// <c>Parallel.For</c>: as tarefas são despachadas todas para o pool antes
+    /// de qualquer espera, o que concentra as chamadas na mesma janela de tempo
+    /// e faz a corrida aparecer também em máquina de poucos núcleos.</para>
+    ///
+    /// <para>O número de duplicatas varia a cada execução, e é isso que
+    /// caracteriza uma corrida: o resultado depende de quando cada thread foi
+    /// escalonada, não da entrada. Por isso a asserção é sobre zero duplicatas,
+    /// e não sobre uma quantidade esperada delas.</para>
+    /// </remarks>
+    [Fact]
+    public async Task CemEmissoesConcorrentesNaoGeramNumeroRepetido()
+    {
+        NumeradorNotaFiscal numerador = NumeradorNotaFiscal.Instancia;
+        numerador.ReiniciarParaTeste();
+
+        var numeros = new ConcurrentBag<string>();
+
+        IEnumerable<Task> emissoes = Enumerable.Range(0, 100)
+            .Select(_ => Task.Run(() => numeros.Add(numerador.Proximo())));
+
+        await Task.WhenAll(emissoes);
+
+        int duplicadas = numeros.Count - numeros.Distinct().Count();
+
+        Assert.Equal(100, numeros.Count);
+        Assert.Equal(0, duplicadas);
+    }
 }

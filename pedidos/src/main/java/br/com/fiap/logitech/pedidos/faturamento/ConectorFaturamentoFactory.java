@@ -2,38 +2,52 @@ package br.com.fiap.logitech.pedidos.faturamento;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 /**
- * TODO-2 (Factory Method): quem decide qual conector de faturamento usar.
+ * GABARITO, TODO-2 (Factory Method): quem decide qual conector de faturamento
+ * usar.
  *
- * <p>Hoje essa decisão está dentro de {@code PedidoService}, numa cadeia de
- * {@code if} que cresce a cada tipo de cliente novo. Enquanto ela ficar lá, a
- * regra de negócio de pedidos sabe o nome de todas as formas de cobrança da
- * empresa, e muda toda vez que o comercial fecha um contrato diferente.</p>
+ * <p>O que faz esta fábrica valer a pena não é ter tirado o {@code if} de
+ * lugar, é o construtor. Ele recebe {@code List<ConectorFaturamento>}, e o
+ * Spring entrega nessa lista todo bean que implemente a interface. Ninguém
+ * registra conector em lugar nenhum: existir e ser {@code @Component} basta.
+ * Por isso o passo seguinte, o TODO-3, não precisa editar este arquivo
+ * também.</p>
  *
- * <h3>O que você faz aqui</h3>
- * <ol>
- *   <li>Receba, no construtor, a {@code List&lt;ConectorFaturamento&gt;} com todos
- *       os conectores. O Spring injeta a lista sozinho: todo conector anotado
- *       com {@code @Component} entra nela sem que ninguém precise registrá-lo
- *       à mão.</li>
- *   <li>Monte um índice de {@code tipoClienteAtendido()} para o conector
- *       correspondente.</li>
- *   <li>Implemente {@link #para(String)} devolvendo o conector do tipo pedido, e
- *       lançando {@link ConectorNaoEncontradoException} quando não existir
- *       conector para aquele tipo.</li>
- *   <li>Em {@code PedidoService}, troque a cadeia de {@code if} por uma chamada
- *       a esta fábrica.</li>
- * </ol>
+ * <p>Se a fábrica tivesse sido escrita com a cadeia de {@code if} apenas
+ * mudada de endereço, o {@code switch} continuaria existindo, só que aqui, e o
+ * Aberto/Fechado do TODO-3 falharia: acrescentar CONTRATO exigiria editar a
+ * fábrica. Mover código não é inverter dependência.</p>
  *
- * <p>Dica: {@code conectores.stream().collect(Collectors.toMap(
- * ConectorFaturamento::tipoClienteAtendido, c -&gt; c))}.</p>
+ * <p>O índice é montado uma vez, na construção, e não a cada pedido: a fábrica
+ * é um bean singleton do Spring e a lista de conectores não muda em tempo de
+ * execução.</p>
  */
 @Component
 public class ConectorFaturamentoFactory {
 
+    private final Map<String, ConectorFaturamento> porTipoCliente;
+
+    public ConectorFaturamentoFactory(List<ConectorFaturamento> conectores) {
+        this.porTipoCliente = conectores.stream()
+                .collect(Collectors.toMap(ConectorFaturamento::tipoClienteAtendido, c -> c));
+    }
+
+    /**
+     * Devolve o conector que atende este tipo de cliente.
+     *
+     * @throws ConectorNaoEncontradoException quando nenhum conector se declara
+     *         responsável pelo tipo pedido. Repare que a exceção é lançada aqui,
+     *         e não em quem chama: quem procura é quem sabe que não achou.
+     */
     public ConectorFaturamento para(String tipoCliente) {
-        // TODO-2: devolva o conector registrado para este tipo de cliente.
-        throw new UnsupportedOperationException(
-                "TODO-2: a fábrica de conectores ainda não foi implementada");
+        ConectorFaturamento conector = porTipoCliente.get(tipoCliente);
+        if (conector == null) {
+            throw new ConectorNaoEncontradoException(tipoCliente);
+        }
+        return conector;
     }
 }
